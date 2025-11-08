@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ERNY CANDY</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(to bottom right, #ffe6f0, #fff0f5);
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 50px);
+      gap: 3px;
+      margin-top: 20px;
+    }
+    .grid div {
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      background-color: gray;
+      transition: transform 0.2s;
+    }
+    .grid div:hover {
+      transform: scale(1.1);
+      cursor: grab;
+    }
+    .hud {
+      margin-bottom: 20px;
+    }
+    .level-intro {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(255, 240, 245, 0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .level-intro h1 {
+      font-size: 3rem;
+      color: #ff4081;
+      font-weight: bold;
+      text-shadow: 0 0 10px #ff80ab;
+    }
+    .celebration-card {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 15px;
+      background: linear-gradient(to right, #ff80ab, #ffb6c1);
+      box-shadow: 0 0 20px rgba(255, 105, 180, 0.6);
+      color: white;
+      text-align: center;
+      animation: glow 1s infinite alternate;
+    }
+    @keyframes glow {
+      from { box-shadow: 0 0 10px #ff80ab; }
+      to { box-shadow: 0 0 20px #ff4081; }
+    }
+    .celebration-icon {
+      font-size: 3rem;
+      margin-bottom: 10px;
+    }
+    .quote {
+      font-style: italic;
+      margin-top: 10px;
+      font-size: 1rem;
+    }
+    .level-map {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .level-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+    }
+    .level-dot.active {
+      background-color: #ff4081;
+      box-shadow: 0 0 10px #ff80ab;
+    }
+    .level-dot.completed {
+      background-color: #4caf50;
+    }
+  </style>
+</head>
+<body class="container text-center">
+  <div class="level-intro" id="levelIntro">
+    <h1>Welcome to <span class="text-danger">ERNY CANDY</span></h1>
+    <p class="lead">Match candies, beat levels, and celebrate your sweet success!</p>
+    <button class="btn btn-primary btn-lg" onclick="startLevel()">Start Level 1</button>
+  </div>
+
+  <h2 class="mb-4 text-primary">ERNY CANDY</h2>
+  <div class="row hud">
+    <div class="col"><strong>Level:</strong> <span id="level">1</span></div>
+    <div class="col"><strong>Score:</strong> <span id="score">0</span></div>
+    <div class="col"><strong>Moves Left:</strong> <span id="moves">20</span></div>
+    <div class="col"><strong>Target:</strong> <span id="target">200</span></div>
+  </div>
+  <div class="grid" id="grid"></div>
+
+  <div id="celebration" class="celebration-card d-none">
+    <div class="celebration-icon">🍬</div>
+    <h3>Level Complete!</h3>
+    <div class="quote">“Sweet moves make sweet victories.”</div>
+  </div>
+
+  <div class="level-map" id="levelMap"></div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const scoreDisplay = document.getElementById('score');
+    const levelDisplay = document.getElementById('level');
+    const movesDisplay = document.getElementById('moves');
+    const targetDisplay = document.getElementById('target');
+    const levelIntro = document.getElementById('levelIntro');
+    const celebration = document.getElementById('celebration');
+    const levelMap = document.getElementById('levelMap');
+
+    const width = 10;
+    const candyColors = ['red', 'yellow', 'green', 'blue', 'purple', 'orange'];
+    let squares = [];
+
+    const levels = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      targetScore: 200 + i * 100,
+      moves: 20 + i * 5
+    }));
+
+    let currentLevel = 0;
+    let score = 0;
+    let movesLeft = 0;
+    let levelActive = true;
+
+    let colorBeingDragged, colorBeingReplaced;
+    let squareIdBeingDragged, squareIdBeingReplaced;
+
+    function renderLevelMap() {
+      levelMap.innerHTML = '';
+      levels.forEach((lvl, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'level-dot';
+        dot.textContent = lvl.id;
+        if (i < currentLevel) dot.classList.add('completed');
+        if (i === currentLevel) dot.classList.add('active');
+        levelMap.appendChild(dot);
+      });
+    }
+
+    function startLevel() {
+      levelIntro.classList.add('d-none');
+      celebration.classList.add('d-none');
+      grid.innerHTML = '';
+      squares = [];
+      score = 0;
+      levelActive = true;
+      movesLeft = levels[currentLevel].moves;
+
+      levelDisplay.textContent = levels[currentLevel].id;
+      scoreDisplay.textContent = score;
+      movesDisplay.textContent = movesLeft;
+      targetDisplay.textContent = levels[currentLevel].targetScore;
+
+      renderLevelMap();
+
+      for (let i = 0; i < width * width; i++) {
+        const square = document.createElement('div');
+        square.setAttribute('draggable', true);
+        square.setAttribute('id', i);
+        let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
+        square.style.backgroundColor = randomColor;
+        grid.appendChild(square);
+        squares.push(square);
+      }
+
+      addDragListeners();
+      setInterval(checkMatches, 200);
+    }
+
+    function addDragListeners() {
+      squares.forEach(square => {
+        square.addEventListener('dragstart', dragStart);
+        square.addEventListener('dragover', e => e.preventDefault());
+        square.addEventListener('drop', dragDrop);
+        square.addEventListener('dragend', dragEnd);
+      });
+    }
+
+    function dragStart() {
+      if (!levelActive) return;
+      colorBeingDragged = this.style.backgroundColor;
+      squareIdBeingDragged = parseInt(this.id);
+    }
+
+    function dragDrop() {
+      if (!levelActive) return;
+      colorBeingReplaced = this.style.backgroundColor;
+      squareIdBeingReplaced = parseInt(this.id);
+      this.style.backgroundColor = colorBeingDragged;
+      squares[squareIdBeingDragged].style.backgroundColor = colorBeingReplaced;
+    }
+
+    function dragEnd() {
+      if (!levelActive) return;
+
+      const validMoves = [
+        squareIdBeingDragged - 1,
+        squareIdBeingDragged + 1,
+        squareIdBeingDragged - width,
+        squareIdBeingDragged + width
+      ];
+      const isValid = validMoves.includes(squareIdBeingReplaced);
+
+      if (squareIdBeingReplaced && isValid) {
+        if (movesLeft > 0) {
+          movesLeft--;
+          movesDisplay.textContent = movesLeft;
+          setTimeout(() => {
+            checkMatches();
+            checkLevelEnd();
+          }, 100);
+        }
+      } else {
+        squares[squareIdBeingDragged].style.backgroundColor = colorBeingDragged;
+        squares[squareIdBeingReplaced].style.backgroundColor = colorBeingReplaced;
+      }
+
+      squareIdBeingDragged = null;
+      squareIdBeingReplaced = null;
+    }
+
+    function checkMatches() {
+      if (!levelActive) return;
+
+           for (let i = 0; i < width * width; i++) {
+        if (i % width > width - 3) continue;
+        let color = squares[i].style.backgroundColor;
+        if (
+          color &&
+          squares[i + 1].style.backgroundColor === color &&
+          squares[i + 2].style.backgroundColor === color
+        ) {
+          squares[i].style.backgroundColor = '';
+          squares[i + 1].style.backgroundColor = '';
+          squares[i + 2].style.backgroundColor = '';
+          score += 30;
+        }
+      }
+
+      for (let i = 0; i < width * (width - 2); i++) {
+        let color = squares[i].style.backgroundColor;
+        if (
+          color &&
+          squares[i + width].style.backgroundColor === color &&
+          squares[i + width * 2].style.backgroundColor === color
+        ) {
+          squares[i].style.backgroundColor = '';
+          squares[i + width].style.backgroundColor = '';
+          squares[i + width * 2].style.backgroundColor = '';
+          score += 30;
+        }
+      }
+
+      scoreDisplay.textContent = score;
+      dropCandies();
+    }
+
+    function dropCandies() {
+      for (let i = width * (width - 1) - 1; i >= 0; i--) {
+        if (squares[i + width] && squares[i + width].style.backgroundColor === '') {
+          squares[i + width].style.backgroundColor = squares[i].style.backgroundColor;
+          squares[i].style.backgroundColor = '';
+        }
+      }
+
+      for (let i = 0; i < width; i++) {
+        if (squares[i].style.backgroundColor === '') {
+          squares[i].style.backgroundColor = candyColors[Math.floor(Math.random() * candyColors.length)];
+        }
+      }
+    }
+
+    function checkLevelEnd() {
+      if (!levelActive) return;
+
+      if (score >= levels[currentLevel].targetScore) {
+        levelActive = false;
+        celebration.classList.remove('d-none');
+        currentLevel++;
+        if (currentLevel < levels.length) {
+          setTimeout(startLevel, 3000);
+        } else {
+          celebration.querySelector('h3').textContent = '🏆 You completed all levels!';
+          celebration.querySelector('.quote').textContent = '“You crushed it, Erny!”';
+        }
+      } else if (movesLeft <= 0) {
+        levelActive = false;
+        celebration.classList.remove('d-none');
+        celebration.querySelector('h3').textContent = '⛔ Out of moves!';
+        celebration.querySelector('.quote').textContent = '“Try again and crush it next time.”';
+      }
+    }
+  </script>
+</body>
+</html>
